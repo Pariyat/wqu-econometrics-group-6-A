@@ -1,24 +1,47 @@
 ---
-title: "R Notebook"
+title: "WQU Econometrics Week-3 Group Project Group 6-A"
 output: html_notebook
 ---
+
+## Group Member:  
+- Dylan Thorne (dylan.thorne@gmail.com)  
+- Mohammad Amimul Ihsan Aquil (amimul786@live.com)  
+- Pariyat Limpitheeprakan (macchiato.me@gmail.com)  
+- Trai Torsricharoen (traitorsricharoen@gmail.com)  
+- YIU LEUNG CHENG (howard.yl.cheng.hk@gmail.com)  
+
+# 3.1.1 Basic Statistics
+## 3.1.1.1 Calculate in R
+1.1. Average stock value  
+1.2. Stock volatility  
+1.3. Daily stock return  
 
 ```{r}
 
 # 3.1.1.1 Calculate in R
 
-jpmdata <- read.csv("3.1.1.2 Excel - JPM.csv",sep='|')
+jpmdata <- read.csv("JPM.csv",sep='|')
 answer_average = mean(jpmdata[["Adj.Close"]])
 rows = nrow(jpmdata)
 returns <- log(jpmdata[2:rows,"Adj.Close"]/jpmdata[1:(rows-1),"Adj.Close"])
 squared_returns <- returns*returns
 answer_volatility = sqrt(sum(squared_returns)/(rows-1))
-cat("Average stock value", answer_average, "\n")
-cat("Stock volatility", answer_volatility, "\n")
-cat("Daily returns\n")
+cat("1.1 Average stock value = ", answer_average, "\n")
+cat("1.2 Stock volatility = ", answer_volatility, "\n")
+cat("1.3 Daily returns\n")
 print(returns)
 ```
+## 3.1.1.2 Calculate in Excel:  
+1.4. Average stock value  
+1.5. Stock volatility  
+1.6. Daily stock return  
+1.7. Show JP Morgan stock price evolution using a scatter plot  
+1.8. Add a trendline to the graph (trendline options – linear)  
 
+Please refer to [excel file here](./3.1.1 JPM.xlsx) 
+
+# 3.1.2 Linear Regression
+## 3.1.2.1 Implement a two-variable regression in R
 ```{r}
 
 # 3.1.2.1 Implement a two-variable regression in R
@@ -26,54 +49,118 @@ print(returns)
 sp500data <- read.csv("SP500.csv")
 #data$x <- sp500data$Adj.Close
 #data$y <- jpmdata$Adj.Close
+#lm(data$y ~ data$x)
 lm(jpmdata$Adj.Close ~ sp500data$Adj.Close)
 ```
 
+## 3.1.2.1 Implement a two-variable regression in Excel using LINEST function and Analysis ToolPak
+
+Please refer to complete calcuation in sheet [excel file here](./3.1.1 JPM.xlsx). 
+
+
+# 3.1.3 Univariate Time Series Analysis
+1. Forecast S&P/Case-Shiller U.S. National Home Price Index using an ARMA model.
+
+Step 1: Examine Given Data
+A good stating point is to plot the series and visually examine it for any outliers, volatility, or irregularities.
 ```{r}
 
 # 3.1.3 Univariate Time Series Analysis
 
 nhpidata <- read.csv("CSUSHPINSA.csv")
 
-# 3.1.3.1
-# Augmented Dickey-Fuller Test
-
 library(tidyverse)
 library(stats)
 library(tseries)
 library(forecast)
-adf.test(nhpidata[["CSUSHPINSA"]])
+library(zoo)
+library(xts)
+
+nhpidata$DATE = as.Date(nhpidata$DATE)
+
+ggplot(nhpidata, aes(DATE, CSUSHPINSA)) + geom_line() + scale_x_date('month')  + ylab("Monthly CSUSHPINSA") +
+            xlab("")
+
+#z = read.zoo(nhpidata)
+#adf_test <- adf.test(z,alternative = 'stationary')
+#print(adf_test)
+```
+R provides a convenient method for removing time series outliers: `tsclean()` as part of its forecast package. tsclean() identifies and replaces outliers using series smoothing and decomposition. This method is also capable of inputing missing values in the series if there are any.Note that we are using the ts() command to create a time series object to pass to tsclean():
+
+```{r}
+CSUSHPINSA_ts = ts(nhpidata[, c('CSUSHPINSA')])
+
+nhpidata$clean_CSUSHPINSA = tsclean(CSUSHPINSA_ts) # cleanse na or missing value
+
+ggplot() +
+  geom_line(data = nhpidata, aes(x = DATE, y = clean_CSUSHPINSA)) + ylab('Monthly Cleaned CSUSHPINSA')
+```
+
+
+```{r}
+plot(z, type="l")
+```
+```{r}
+acf(z)
+```
+
+
+```{r}
+diff1dat <- diff(z)
+adf.test(diff1dat)
+```
+```{r}
+diff2dat <- diff(diff1dat)
+adf.test(diff2dat)
+```
+```{r}
+forecast::ndiffs(z, test="adf")
+```
+
+
+
+```{r}
+plot(diff(z,1),ylab='Differenced')
+```
+```{r}
+plot(diff(log10(z)),ylab='Log ')
 ```
 
 ```{r}
 
-# no root in ADF test so the series is stationary
-
+# The null hypothesis is NOT rejected as the p-value is greater than 0.05.This confirms the results of our visual inspection.
 # ACF & PACF for Box-Jenkins
 
-acf(nhpidata[["CSUSHPINSA"]])
-pacf(nhpidata[["CSUSHPINSA"]])
+acf(z[,1])
+pacf(z[,1])
 
 ```
 
+```{r}
+# 3.1.3.1 
+# Augmented Dickey-Fuller Test
+```
 
 ```{r}
 
 # 3.1.3.2
 # ARIMA Model
 
-# From the PACF there is a spike at 1 so we will choose d=1
+# From the PACF plot there is a spike at 1 so we will choose d=1
 # Flat ACF and the spike at d=1 suggest ARIMA(0,1,0) from Box-Jenkins
 model <- arima(nhpidata[["CSUSHPINSA"]], order = c(0,1,0))
 summary(model)
 
 ```
+```{r}
+forecast::Arima(nhpidata[["CSUSHPINSA"]], order=c(0,1,0), include.constant=TRUE)
+```
 
 ```{r}
 
 # Commentary on the ARIMA results
-
-
+library(lmtest)
+coeftest(model) 
 
 ```
 
