@@ -59,14 +59,11 @@ Please refer to complete calcuation in sheet [excel file here](./3.1.1 JPM.xlsx)
 
 
 # 3.1.3 Univariate Time Series Analysis
-1. Forecast S&P/Case-Shiller U.S. National Home Price Index using an ARMA model.
+## 3.1.3.1. Forecast S&P/Case-Shiller U.S. National Home Price Index using an ARMA model.
 
 Step 1: Examine Given Data
 A good stating point is to plot the series and visually examine it for any outliers, volatility, or irregularities.
 ```{r}
-
-# 3.1.3 Univariate Time Series Analysis
-
 nhpidata <- read.csv("CSUSHPINSA.csv")
 
 library(tidyverse)
@@ -75,6 +72,7 @@ library(tseries)
 library(forecast)
 library(zoo)
 library(xts)
+library(forecast)
 
 nhpidata$DATE = as.Date(nhpidata$DATE)
 
@@ -85,6 +83,8 @@ ggplot(nhpidata, aes(DATE, CSUSHPINSA)) + geom_line() + scale_x_date('month')  +
 #adf_test <- adf.test(z,alternative = 'stationary')
 #print(adf_test)
 ```
+As shown in the plot, the data exhibit trend line.
+
 R provides a convenient method for removing time series outliers: `tsclean()` as part of its forecast package. tsclean() identifies and replaces outliers using series smoothing and decomposition. This method is also capable of inputing missing values in the series if there are any.Note that we are using the ts() command to create a time series object to pass to tsclean():
 
 ```{r}
@@ -92,93 +92,80 @@ CSUSHPINSA_ts = ts(nhpidata[, c('CSUSHPINSA')])
 
 nhpidata$clean_CSUSHPINSA = tsclean(CSUSHPINSA_ts) # cleanse na or missing value
 
+nhpidata <- nhpidata[,c(1,3)]
+
 ggplot() +
   geom_line(data = nhpidata, aes(x = DATE, y = clean_CSUSHPINSA)) + ylab('Monthly Cleaned CSUSHPINSA')
 ```
+Step 2: Decompose Your Data
+The building blocks of a time series analysis are seasonality, trend, and cycle. Yet, not every series will have all three (or any) of these components, but if they are present, deconstructing the series can help us understand its behavior and prepare a foundation for building a forecasting model.
 
-
+We can use the following R code to find out the components of this time series:
 ```{r}
-plot(z, type="l")
+count_ma = ts(na.omit(nhpidata$clean_CSUSHPINSA),start = c(1987,1),end = c(2019,6), frequency=12)
+decomp = stl(count_ma, s.window="periodic")
+deseasonal_cnt <- seasadj(decomp)
+plot(decomp)
 ```
+We now have a de-seasonalized series and can proceed to the next step.
+
+### 3.1.3.1.1 Implement the Augmented Dickey-Fuller Test for checking the existence of a unitroot in Case-Shiller Index series
+
+Step 4: Stationarity Test
 ```{r}
-acf(z)
+
+adf.test(count_ma, alternative = "stationary")
 ```
+The null hypothesis is NOT rejected as the p-value is greater than 0.05. So, the Case-Shiller Index series is non-stationary. This confirms the results of our visual inspection. Usually, non-stationary series can be corrected by a simple transformation such as differencing. Differencing the series can help in removing its trend or cycles.
 
-
+Now, we use `acf` and `pacf` to determine `p`, `d` and `q`
 ```{r}
-diff1dat <- diff(z)
-adf.test(diff1dat)
-```
-```{r}
-diff2dat <- diff(diff1dat)
-adf.test(diff2dat)
-```
-```{r}
-forecast::ndiffs(z, test="adf")
-```
-
-
-
-```{r}
-plot(diff(z,1),ylab='Differenced')
-```
-```{r}
-plot(diff(log10(z)),ylab='Log ')
-```
-
-```{r}
-
-# The null hypothesis is NOT rejected as the p-value is greater than 0.05.This confirms the results of our visual inspection.
-# ACF & PACF for Box-Jenkins
-
-acf(z[,1])
-pacf(z[,1])
-
-```
-
-```{r}
-# 3.1.3.1 
-# Augmented Dickey-Fuller Test
-```
-
-```{r}
-
-# 3.1.3.2
-# ARIMA Model
-
-# From the PACF plot there is a spike at 1 so we will choose d=1
-# Flat ACF and the spike at d=1 suggest ARIMA(0,1,0) from Box-Jenkins
-model <- arima(nhpidata[["CSUSHPINSA"]], order = c(0,1,0))
-summary(model)
-
-```
-```{r}
-forecast::Arima(nhpidata[["CSUSHPINSA"]], order=c(0,1,0), include.constant=TRUE)
-```
-
-```{r}
-
-# Commentary on the ARIMA results
-library(lmtest)
-coeftest(model) 
-
-```
-
-```{r}
-
-# 3.1.3.3
-# Case-Schiller Index
-
-
-
-```
-
-```{r}
-
-# 3.1.3.4
-# Suggest exogenous variables
-
-
+Acf(count_ma, main='')
 ```
 
 
+```{r}
+Pacf(count_ma, main='')
+```
+We can start with the order of d = 1 and re-evaluate whether further differencing is needed. The augmented Dickey-Fuller test on differenced data rejects the null hypotheses of non-stationarity. Plotting the differenced series, we see an oscillating pattern around 0 with no visible strong trend. This suggests that differencing of order 1 terms is sufficient and should be included in the model.
+
+```{r}
+count_d1 = diff(deseasonal_cnt, differences = 1)
+plot(count_d1)
+adf.test(count_d1, alternative = "stationary")
+```
+```{r}
+Acf(count_d1, main='ACF for Differenced Series')
+Pacf(count_d1, main='PACF for Differenced Series')
+```
+
+### 3.1.3.1.2 Implement an ARIMA(p,d,q) model. Determine p, d, q using Information Criterion or Box-Jenkins methodology. Comment result
+
+Step 5 Arima Model Fitting.
+
+- From the PACF plot there is a spike at 1 so we will choose d=1  
+- Or We could leverage `auto.arima` to automatically generate a set of optimal (p, d, q)
+```{r}
+auto.arima(deseasonal_cnt, seasonal=FALSE)
+
+```
+To evaluate the model, we can start by examining ACF and PACF plots for model residuals. If model order parameters and structure are correctly specified, we would expect no significant autocorrelations present.
+```{r}
+fit<-auto.arima(deseasonal_cnt, seasonal=FALSE)
+tsdisplay(residuals(fit), main='(3,1,4) Model Residuals')
+```
+
+
+### 3.1.3.1.3 Forecast the future evolution of Case-Shiller Index using the ARMA model. Test model using in-sample forecasts
+
+Forecasting using a fitted model is straightforward in R. We can specify forecast horizon h periods ahead for predictions to be made, and use the fitted model to generate those predictions:
+```{r}
+futurVal <- forecast::forecast(fit,h=30, level=c(99.5))
+plot(futurVal)
+```
+
+The forecasts are shown as a blue line, with the 80% prediction intervals as a dark shaded area, and the 95% prediction intervals as a light shaded area.
+
+### 3.1.3.1.4 Suggest exogenous variables
+
+GDP growth and inflation will have an effect on the NHPI. Inflation can be expected to be closely correlatted, since inflation is a measure of increasing prices in general. GDP growth may be less correlated though.
