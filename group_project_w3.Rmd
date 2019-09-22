@@ -7,7 +7,7 @@ output: html_notebook
 
 # 3.1.1.1 Calculate in R
 
-jpmdata <- read.csv("c:\\WQU\\JPM.csv")
+jpmdata <- read.csv("3.1.1.2 Excel - JPM.csv",sep='|')
 answer_average = mean(jpmdata[["Adj.Close"]])
 rows = nrow(jpmdata)
 returns <- log(jpmdata[2:rows,"Adj.Close"]/jpmdata[1:(rows-1),"Adj.Close"])
@@ -23,17 +23,17 @@ print(returns)
 
 # 3.1.2.1 Implement a two-variable regression in R
 
-sp500data <- read.csv("c:\\WQU\\SP500.csv")
-data$x <- sp500data[["Adj.Close"]] 
-data$y <- jpmdata[["Adj.Close"]]
-lm(data$y ~ data$x)
+sp500data <- read.csv("SP500.csv")
+#data$x <- sp500data$Adj.Close
+#data$y <- jpmdata$Adj.Close
+lm(jpmdata$Adj.Close ~ sp500data$Adj.Close)
 ```
 
 ```{r}
 
 # 3.1.3 Univariate Time Series Analysis
 
-nhpidata <- read.csv("c:\\WQU\\CSUSHPINSA.csv")
+nhpidata <- read.csv("CSUSHPINSA.csv")
 
 # 3.1.3.1
 # Augmented Dickey-Fuller Test
