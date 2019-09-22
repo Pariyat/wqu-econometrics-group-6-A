@@ -127,13 +127,20 @@ Acf(count_ma, main='')
 ```{r}
 Pacf(count_ma, main='')
 ```
-We can start with the order of d = 1 and re-evaluate whether further differencing is needed. The augmented Dickey-Fuller test on differenced data rejects the null hypotheses of non-stationarity. Plotting the differenced series, we see an oscillating pattern around 0 with no visible strong trend. This suggests that differencing of order 1 terms is sufficient and should be included in the model.
-
+We can start with the order of d = 1 and re-evaluate whether further differencing is needed. The augmented Dickey-Fuller test on differenced data rejects the null hypotheses of non-stationarity. However, since the augmented Dickey-Fuller test show `p-value` greater than 0.05, so we cannot reject null hypothesis. 
 ```{r}
 count_d1 = diff(deseasonal_cnt, differences = 1)
 plot(count_d1)
 adf.test(count_d1, alternative = "stationary")
 ```
+Now, we try d =2.
+```{r}
+count_d1 = diff(deseasonal_cnt, differences = 2)
+plot(count_d1)
+adf.test(count_d1, alternative = "stationary")
+```
+Plotting the differenced series, we see an oscillating pattern around 0 with no visible strong trend. This suggests that differencing of order 2 terms is sufficient and should be included in the model.
+
 ```{r}
 Acf(count_d1, main='ACF for Differenced Series')
 Pacf(count_d1, main='PACF for Differenced Series')
@@ -143,16 +150,16 @@ Pacf(count_d1, main='PACF for Differenced Series')
 
 Step 5 Arima Model Fitting.
 
-- From the PACF plot there is a spike at 1 so we will choose d=1  
+- From the PACF plot there is a spike at 1 so we will choose d=2 
 - Or We could leverage `auto.arima` to automatically generate a set of optimal (p, d, q)
 ```{r}
-auto.arima(deseasonal_cnt, seasonal=FALSE)
+auto.arima(deseasonal_cnt, seasonal=FALSE,d = 2)
 
 ```
 To evaluate the model, we can start by examining ACF and PACF plots for model residuals. If model order parameters and structure are correctly specified, we would expect no significant autocorrelations present.
 ```{r}
-fit<-auto.arima(deseasonal_cnt, seasonal=FALSE)
-tsdisplay(residuals(fit), main='(3,1,4) Model Residuals')
+fit<-auto.arima(deseasonal_cnt, seasonal=FALSE,d = 2)
+tsdisplay(residuals(fit), main='(2,2,4) Model Residuals')
 ```
 
 
