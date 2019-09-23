@@ -59,10 +59,8 @@ Please refer to complete calcuation in sheet [excel file here](./3.1.1 JPM.xlsx)
 
 
 # 3.1.3 Univariate Time Series Analysis
-## 3.1.3.1. Forecast S&P/Case-Shiller U.S. National Home Price Index using an ARMA model.
-
-Step 1: Examine Given Data
-A good stating point is to plot the series and visually examine it for any outliers, volatility, or irregularities.
+## 3.1.3.1 Forecast S&P/Case-Shiller U.S. National Home Price Index using an ARMA model.
+Examine Given Data: A good stating point is to plot the series and visually examine it for any outliers, volatility, or irregularities.
 ```{r}
 nhpidata <- read.csv("CSUSHPINSA.csv")
 
@@ -97,7 +95,6 @@ nhpidata <- nhpidata[,c(1,3)]
 ggplot() +
   geom_line(data = nhpidata, aes(x = DATE, y = clean_CSUSHPINSA)) + ylab('Monthly Cleaned CSUSHPINSA')
 ```
-Step 2: Decompose Your Data
 The building blocks of a time series analysis are seasonality, trend, and cycle. Yet, not every series will have all three (or any) of these components, but if they are present, deconstructing the series can help us understand its behavior and prepare a foundation for building a forecasting model.
 
 We can use the following R code to find out the components of this time series:
@@ -109,70 +106,81 @@ plot(decomp)
 ```
 We now have a de-seasonalized series and can proceed to the next step.
 
-### 3.1.3.1.1 Implement the Augmented Dickey-Fuller Test for checking the existence of a unitroot in Case-Shiller Index series
-
-Step 4: Stationarity Test
+### 3.1.3.1 Implement the Augmented Dickey-Fuller Test for checking the existence of a unitroot in Case-Shiller Index series
 ```{r}
 
 adf.test(count_ma, alternative = "stationary")
 ```
-The null hypothesis is NOT rejected as the p-value is greater than 0.05. So, the Case-Shiller Index series is non-stationary. This confirms the results of our visual inspection. Usually, non-stationary series can be corrected by a simple transformation such as differencing. Differencing the series can help in removing its trend or cycles.
+The null hypothesis is NOT rejected as the p-value is greater than 0.05. So, the Case-Shiller Index series is non-stationary. This confirms the results of our visual inspection. Usually, non-stationary series can be corrected by a simple transformation such as differencing. Applying log and differencing into the series can help in removing its trend or cycles.
 
-Now, we use `acf` and `pacf` to determine `p`, `d` and `q`
+### 3.1.3.2 Implement an ARIMA(p,d,q) model. Determine p, d, q using Information Criterion or Box-Jenkins methodology. Comment result
+
 ```{r}
-Acf(count_ma, main='')
+rows = nrow(nhpidata)
+names(nhpidata) <- c('DATE','CSUSHPINSA')
+#apply log to index to get log return
 ```
 
-
 ```{r}
-Pacf(count_ma, main='')
+returns <- log(nhpidata[2:rows,"CSUSHPINSA"]/nhpidata[1:(rows-1),"CSUSHPINSA"])
+#plot log return against date
+plot(returns)
+#ADF test for stationarity of log return (suggesting nonstationarity)
+adf.test(returns,alternative = "stationary")
 ```
-We can start with the order of d = 1 and re-evaluate whether further differencing is needed. The augmented Dickey-Fuller test on differenced data rejects the null hypotheses of non-stationarity. However, since the augmented Dickey-Fuller test show `p-value` greater than 0.05, so we cannot reject null hypothesis. 
+Apply first difference:
 ```{r}
-count_d1 = diff(deseasonal_cnt, differences = 1)
-plot(count_d1)
-adf.test(count_d1, alternative = "stationary")
+lengthOfReturns<-length(returns)
+firstdiff<-returns[2:lengthOfReturns]-returns[1:lengthOfReturns-1]
+adf.test(firstdiff)
 ```
-Now, we try d =2.
+P-value from the augmented Dickey-Fuller test  is less than 0.01 suggesting stationary.
+Now, we can use `acf` and `pacf` to determine `p`, `d` and `q`
 ```{r}
-count_d1 = diff(deseasonal_cnt, differences = 2)
-plot(count_d1)
-adf.test(count_d1, alternative = "stationary")
+pacf(firstdiff)
 ```
-Plotting the differenced series, we see an oscillating pattern around 0 with no visible strong trend. This suggests that differencing of order 2 terms is sufficient and should be included in the model.
+As the plot shown, there is strike in first 12 lags.
 
 ```{r}
-Acf(count_d1, main='ACF for Differenced Series')
-Pacf(count_d1, main='PACF for Differenced Series')
+acf(firstdiff)
+```
+As the plot above shown, acf pattern showing expoential decays with damped sine wave pattern. Therefore, it can be inferred that ARIMA(12,1,0) model fits the data well. Now we try with: 
+
+```{r}
+ARIMA_Model <- arima(window(firstdiff,1,lengthOfReturns-1), order=c(12,1,0), method = "ML")
+summary(ARIMA_Model)
+```
+From the summary, we can see sigma^2 (variance) and aic are quite small, which is a good sign suggesting good fits to data. To check if the residual of ARIMA(12,1,0) model is pure white noise.
+```{r}
+pacf(ARIMA_Model$residuals)
+acf(ARIMA_Model$residuals)
 ```
 
-### 3.1.3.1.2 Implement an ARIMA(p,d,q) model. Determine p, d, q using Information Criterion or Box-Jenkins methodology. Comment result
-
-Step 5 Arima Model Fitting.
-
-- From the PACF plot there is a spike at 1 so we will choose d=2 
-- Or We could leverage `auto.arima` to automatically generate a set of optimal (p, d, q)
+As shown in partial autocorrelation graph, we do not see significant strike except lag 16, 17. So, we can perform Box-Pierce test on these two lags.
 ```{r}
-auto.arima(deseasonal_cnt, seasonal=FALSE,d = 2)
-
+Box.test(ARIMA_Model$residuals, lag =16)
+Box.test(ARIMA_Model$residuals, lag =17)
+```
+Their p-values are very high, so we fail to reject null hypothesis that errors are white noise. Therefore, the residuals are proved to be white noise.
+### 3.1.3.3 Forecast the future evolution of Case-Shiller Index using the ARMA model. Test model using in-sample forecasts
+```{r}
+ARIMA_Model <- arima(window(returns,1,lengthOfReturns-73), order=c(12,1,0), method = "ML")
+ARIMA_forecast <- predict(ARIMA_Model, n.ahead=72, se.fit=TRUE)
+plot(window(returns, 1, lengthOfReturns-1))
+lines(ARIMA_forecast$pred, col="blue")
+lines(ARIMA_forecast$pred+1*ARIMA_forecast$se, col="cornflowerblue", lty="dashed")
+lines(ARIMA_forecast$pred-1*ARIMA_forecast$se, col="cornflowerblue", lty="dashed")
 ```
 To evaluate the model, we can start by examining ACF and PACF plots for model residuals. If model order parameters and structure are correctly specified, we would expect no significant autocorrelations present.
 ```{r}
-fit<-auto.arima(deseasonal_cnt, seasonal=FALSE,d = 2)
-tsdisplay(residuals(fit), main='(2,2,4) Model Residuals')
+tsdisplay(residuals(ARIMA_Model), main='(12,1,0) Model Residuals')
 ```
-
-
-### 3.1.3.1.3 Forecast the future evolution of Case-Shiller Index using the ARMA model. Test model using in-sample forecasts
+As we see in the graph, most of the test data are within one standard deviation from our prediction suggesting that ARIMA(12,1,0) is accurate.
 
 Forecasting using a fitted model is straightforward in R. We can specify forecast horizon h periods ahead for predictions to be made, and use the fitted model to generate those predictions:
 ```{r}
-futurVal <- forecast::forecast(fit,h=30, level=c(99.5))
+futurVal <- forecast::forecast(ARIMA_Model,h=30, level=c(99.5))
 plot(futurVal)
 ```
-
-The forecasts are shown as a blue line, with the 80% prediction intervals as a dark shaded area, and the 95% prediction intervals as a light shaded area.
-
-### 3.1.3.1.4 Suggest exogenous variables
-
-GDP growth and inflation will have an effect on the NHPI. Inflation can be expected to be closely correlatted, since inflation is a measure of increasing prices in general. GDP growth may be less correlated though.
+### 3.1.3.4 Suggest exogenous variables
+It would be advisable to include these exogenous varibale into the modle: Federal Reserve Rate and Purchasing Manager Index. Motgage rate is closely relating to federal reserve rate, which will impact investors appetite on investing in property. Purchasing Manager Index is an indicator which suggests market sentiment and prevailing direction of economic trends in economic activities. Therefore, it can reflect investors' risk aversion in investing.
